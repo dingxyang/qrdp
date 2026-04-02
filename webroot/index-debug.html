@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+        <title>Go FreeRDP：离线</title>
+        <meta name="robots" content="nofollow" />
+        <meta name="description" content="基于 HTML5 的 RDP 客户端">
+        <meta name="viewport" content="width=device-width height=device-height user-scalable=no">
+        <meta name="cursor-event-mode" content="native">
+        <meta name="touch-event-mode" content="pure-with-mouse-conversion">
+        <link rel="stylesheet" href="css/style-debug.css">
+        <link rel="stylesheet" href="css/vkb-debug.css">
+        <script src="js/modernizr-debug.js"></script>
+        <script src="js/mootools-debug.js"></script>
+        <script src="js/simpletabs-debug.js"></script>
+        <script src="js/wsgate-debug.js"></script>
+        <script src="js/vkb-debug.js"></script>
+        <script language="javascript" type="text/javascript">
+            var wsBase = "ws://" + window.location.host + "/ws";
+            var RIMtablet = navigator.appVersion && (-1 != navigator.appVersion.indexOf('RIM Tablet'));
+            var mhx = 100;
+            var mhy = 100;
+            var dragX = 0;
+            var dragY = 0;
+            var inDrag = false;
+            var rdp = null;
+            var vkbd = null;
+            var resizeTimer = null;
+            function onConnectedResize() {
+                if (resizeTimer) clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function() {
+                    var w = window.getCoordinates().width;
+                    var h = window.getCoordinates().height;
+                    if (w % 2) w -= 1;
+                    $('screen').width = w;
+                    $('screen').height = h;
+                    if (rdp) rdp.Resize(w, h);
+                }, 300);
+            }
+            function RDPrun() {
+                var wsUri = wsBase
+                    + '?host=' + encodeURIComponent($('rdphost').value)
+                    + '&user=' + encodeURIComponent($('rdpuser').value)
+                    + '&pass=' + encodeURIComponent($('rdppass').value)
+                    + '&port=' + encodeURIComponent($('port').value)
+                    + '&dtsize=' + $('screen').width + 'x' + $('screen').height
+                    ;
+                rdp = new wsgate.RDP(wsUri, $('screen'), !RIMtablet, RIMtablet, vkbd);
+                rdp.addEvent('alert', function(msg) {
+                        alert(msg);
+                        });
+                rdp.addEvent('connected', function() {
+                        document.title = "Go FreeRDP：已连接";
+                        window.removeEvent('resize', OnDesktopSize);
+                        window.addEvent('resize', onConnectedResize);
+                        $('disconnectBtn').removeClass('invisible');
+                        });
+                rdp.addEvent('disconnected', function() {
+                        document.title = "Go FreeRDP：已断开";
+                        $('disconnectBtn').addClass('invisible');
+                        window.removeEvent('resize', onConnectedResize);
+                        OnDesktopSize();
+                        window.addEvent('resize', OnDesktopSize);
+                        showDialog(true);
+                        });
+                rdp.addEvent('mouserelease', ResetRdpMouseFlags);
+                rdp.addEvent('touch2', function() {
+                    ShowMouseHelper($('mousehelper').hasClass('invisible'));
+                });
+                rdp.addEvent('touch3', function() {
+                    vkbd.toggle();
+                });
+                rdp.addEvent('touch4', function() {
+                    if (confirm('确定断开连接？')) {
+                        rdp.Disconnect();
+                    }
+                });
+                showDialog(false);
+                rdp.Run();
+            }
+            function SetRdpMouseFlags() {
+                var mf = {
+                    'r': $('rclick').checked,
+                    'm': $('mclick').checked,
+                    'a': $('aclick').checked,
+                    's': $('sclick').checked,
+                    'c': $('cclick').checked,
+                };
+                rdp.SetArtificialMouseFlags(mf);
+            }
+            function ResetRdpMouseFlags() {
+                $('rclick').checked = false;
+                $('mclick').checked = false;
+                $('aclick').checked = false;
+                $('sclick').checked = false;
+                $('cclick').checked = false;
+                rdp.SetArtificialMouseFlags(null);
+            }
+            function ShowMouseHelper(show) {
+                var mh = $('mousehelper');
+                inDrag = false;
+                if (show) {
+                    mh.setStyles({'position':'absolute','top':mhy,'left':mhx,'z-index':999});
+                    mh.addEvent('mousedown',DragStart);
+                    $('rclick').addEvent('change', SetRdpMouseFlags);
+                    $('mclick').addEvent('change', SetRdpMouseFlags);
+                    $('aclick').addEvent('change', SetRdpMouseFlags);
+                    $('sclick').addEvent('change', SetRdpMouseFlags);
+                    $('cclick').addEvent('change', SetRdpMouseFlags);
+                    mh.removeClass('invisible');
+                } else {
+                    mh.removeEvents();
+                    mh.addClass('invisible');
+                    $('rclick').removeEvents();
+                    $('mclick').removeEvents();
+                    $('aclick').removeEvents();
+                    $('sclick').removeEvents();
+                    $('cclick').removeEvents();
+                }
+            }
+            function DragStart(evt) {
+                var mh = $('mousehelper');
+                if (!mh.hasClass('invisible')) {
+                    inDrag = true;
+                    dragX = evt.page.x;
+                    dragY = evt.page.y;
+                    window.addEvent('mouseup',DragEnd);
+                    window.addEvent('touchmove',DragMove);
+                }
+            }
+            function DragEnd(evt) {
+                inDrag = false;
+                var mh = $('mousehelper');
+                window.removeEvent('touchmove',DragMove);
+                window.removeEvent('mouseup',DragEnd);
+            }
+            function DragMove(evt) {
+                if (inDrag) {
+                    var dx = evt.page.x - dragX;
+                    var dy = evt.page.y - dragY;
+                    dragX = evt.page.x;
+                    dragY = evt.page.y;
+                    var mh = $('mousehelper');
+                    if (!mh.hasClass('invisible')) {
+                        mhx += dx;
+                        mhy += dy;
+                        mh.setStyles({'top':mhy,'left':mhx});
+                    }
+                }
+            }
+            function ResizeCanvas(sz) {
+                var w, h;
+                if (sz == 'auto') {
+                    w = window.getCoordinates().width;
+                    h = window.getCoordinates().height;
+                    if (RIMtablet) {
+                        // Toplevel bar not removable
+                        h -= 31;
+                    }
+                    if (w % 2) {
+                        w -= 1;
+                    }
+                } else {
+                    var sza = sz.split('x');
+                    var w = sza[0];
+                    var h = sza[1];
+                }
+                $('screen').width = w;
+                $('screen').height = h;
+                var hint = $('sizeHint');
+                if (hint) hint.set('text', w + ' × ' + h);
+            }
+            function OnDesktopSize() {
+                ResizeCanvas($('dtsize').value);
+            }
+            function showDialog(show) {
+                if (show) {
+                    ShowMouseHelper(false);
+                    var dlg = $('maindialog');
+                    var x = Math.round((window.getCoordinates().width - dlg.getCoordinates().width) / 2) + 'px';
+                    var y = Math.round((window.getCoordinates().height - dlg.getCoordinates().height) / 2) + 'px';
+                    dlg.setStyles({
+                            'position': 'absolute',
+                            'top': y,
+                            'left': x,
+                            'z-index': 999
+                            }).removeClass('invisible');
+                } else {
+                    $('maindialog').addClass('invisible');
+                }
+            }
+            window.addEvent('domready', function() {
+                    $('dtsize').addEvent('change', OnDesktopSize);
+                    var tabs = new SimpleTabs('rdpdialog',{selector:'h4'});
+                    OnDesktopSize();
+                    if (RIMtablet) {
+                        // Set default performance flags to modem
+                        $('perf').value = '2';
+                    }
+                    window.addEvent('resize', OnDesktopSize);
+                    // 从后端获取版本信息并显示
+                    fetch('/api/version').then(function(r) {
+                        return r.json();
+                    }).then(function(d) {
+                        $('appVersion').set('text', d.app);
+                        $('freerdpVersion').set('text', d.freerdp);
+                    });
+                    // 从后端获取连接默认参数并预填充表单
+                    fetch('/api/config').then(function(r) {
+                        return r.json();
+                    }).then(function(d) {
+                        if (d.host) $('rdphost').value = d.host;
+                        if (d.user) $('rdpuser').value = d.user;
+                        if (d.pass) $('rdppass').value = d.pass;
+                        if (d.port) $('port').value = d.port;
+                    });
+                    var tgl = $('togglePass');
+                    if (tgl) {
+                        tgl.addEvent('click', function() {
+                            var p = $('rdppass');
+                            if (!p) return;
+                            if (p.getAttribute('type') === 'password') {
+                                p.setAttribute('type', 'text');
+                                tgl.set('text', '🙈');
+                            } else {
+                                p.setAttribute('type', 'password');
+                                tgl.set('text', '👁️');
+                            }
+                        });
+                    }
+                    // Special handling of webkit nightly builds
+                    var webkitOK = false;
+                    var wkVA = RegExp("( AppleWebKit/)([^ ]+)").exec(navigator.userAgent);
+                    if (wkVA && (wkVA.length > 2)) {
+                        if (wkVA[2].indexOf('+') != -1) {
+                            webkitOK = true;
+                        }
+                    }
+                    var wsOK = RIMtablet || webkitOK ||
+                        (Browser.firefox && (Browser.version >= 11.0)) ||
+                        (Browser.chrome && (Browser.version >= 17)) ||
+                        (Browser.safari && (Browser.version >= 6)) ||
+                        (Browser.ie && (Browser.version >= 10.0)) ||
+                        (!!window.WebSocket);
+                    if (wsOK) {
+                        vkbd = new wsgate.vkbd({
+                            version:false,
+                            sizeswitch:false,
+                            numpadtoggle:false,
+                            layouts: ['en_US'],
+                            deflayout: 'en_US'
+                        });
+                        // 显示连接对话框，等待用户填写参数并点击 Connect
+                        showDialog(true);
+                        $('rdpconnect').addEvent('click', function() {
+                            RDPrun();
+                        });
+                        $('disconnectBtn').addEvent('click', function() {
+                            if (rdp) rdp.Disconnect();
+                        });
+                    } else {
+                        alert('抱歉！\n您的浏览器（' + Browser.name + ' ' + Browser.version
+                                + '）尚不支持本应用所需的 HTML5 功能。\n');
+                    }
+            });
+        </script>
+    </head>
+    <body>
+        <canvas id="screen" width="640px" height="480px">
+        <p class="error">抱歉，您的浏览器不支持 canvas 标签。</p>
+        </canvas>
+        <button id="disconnectBtn" class="invisible">断开连接</button>
+        <noscript><p class="error">请启用 JavaScript。</p></noscript>
+        <table width="400px" id="maindialog" class="invisible">
+            <tr>
+                <td>
+                    <div id="rdpdialog" class="dialog">
+                        <div class="dialog-header">
+                            <svg class="dialog-logo" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="1" y="1" width="26" height="26" rx="7" stroke="#CF0A2C" stroke-width="2"/>
+                                <rect x="6" y="9" width="5" height="10" rx="1.5" fill="#CF0A2C"/>
+                                <rect x="17" y="9" width="5" height="10" rx="1.5" fill="#CF0A2C"/>
+                                <rect x="11" y="13" width="6" height="2" rx="1" fill="#CF0A2C"/>
+                            </svg>
+                            <span class="dialog-title">远程桌面连接</span>
+                        </div>
+                        <h4 title="主要连接设置">常规</h4>
+                        <div>
+                            <form>
+                                <fieldset>
+                                    <legend>会话参数</legend>
+                                    <table>
+                                        <tr>
+                                            <td class="key"><label for="host">主机名：</label></td>
+                                            <td><input id="rdphost" type="text" name="host" value="" /></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="key"><label for="user">用户名：</label></td>
+                                            <td><input id="rdpuser" type="text" name="user" value="" /></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="key"><label for="pass">密码：</label></td>
+                                            <td>
+                                                <div style="position:relative;display:block;">
+                                                    <input id="rdppass" type="password" name="pass" value="" autocomplete="off" style="padding-right:28px;" />
+                                                    <span id="togglePass" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;line-height:1;">👁️</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="buttons" colspan="2">
+                                                <input id="dtsize" name="dtsize" type="hidden" value="auto" />
+                                                <span id="sizeHint"></span>
+                                                <input id="rdpconnect" type="button" value="连接" />
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </fieldset>
+                            </form>
+                        </div>
+                        <h4 title="高级会话参数">高级</h4>
+                        <div>
+                            <form>
+                                <fieldset>
+                                    <legend>高级会话参数</legend>
+                                    <table>
+                                        <tr>
+                                            <td class="key"><label for="port">端口：</label></td>
+                                            <td><input id="port" name="port" type="text" size="6" maxlen="5" value="53389" /></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="key"><label for="perf">性能：</label></td>
+                                            <td>
+                                                <select id="perf" name="perf" %DISABLED_PERF%>
+                                                    <option value="0" %SELECTED_PERF0%>局域网</option>
+                                                    <option value="1" %SELECTED_PERF1%>宽带</option>
+                                                    <option value="2" %SELECTED_PERF2%>调制解调器</option>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="key"><label for="nowallp">禁用壁纸：</label></td>
+                                            <td><input id="nowallp" name="nowallp" type="checkbox" %CHECKED_NOWALLP%/></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="key"><label for="nowdrag">禁用窗口全拖动：</label></td>
+                                            <td><input id="nowdrag" name="nowdrag" type="checkbox" %CHECKED_NOWDRAG%/></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="key"><label for="nomani">禁用菜单动画：</label></td>
+                                            <td><input id="nomani" name="nomani" type="checkbox" %CHECKED_NOMANI%/></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="key"><label for="notheme">禁用主题：</label></td>
+                                            <td><input id="notheme" name="notheme" type="checkbox" %CHECKED_NOTHEME%/></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="key"><label for="nonla">禁用网络级别身份验证：</label></td>
+                                            <td><input id="nonla" name="nonla" type="checkbox" %CHECKED_NONLA%/></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="key"><label for="notls">禁用 TLS：</label></td>
+                                            <td><input id="notls" name="notls" type="checkbox" %CHECKED_NOTLS%/></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="key"><label for="fntlm">强制 NTLM 认证：</label></td>
+                                            <td>
+                                                <select id="fntlm" name="fntlm" %DISABLED_FNTLM%>
+                                                    <option value="0" %SELECTED_FNTLM0%>禁用</option>
+                                                    <option value="1" %SELECTED_FNTLM1%>NTLM v1</option>
+                                                    <option value="2" %SELECTED_FNTLM2%>NTLM v2</option>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </fieldset>
+                            </form>
+                            <br />
+                        </div>
+                        <h4 title="显示版本信息">关于</h4>
+                        <div class="about">
+                            <h2>Go FreeRDP</h2>
+                            应用版本 <span id="appVersion">-</span><br />
+                            FreeRDP 版本 <span id="freerdpVersion">-</span>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+        <table width="240px" id="mousehelper" class="invisible">
+            <tr>
+                <td>
+                    <div id="mousedialog" class="dialog">
+                        <form>
+                            <fieldset>
+                                <legend>点击属性</legend>
+                                <table>
+                                    <tr>
+                                        <td class="key"><label class="big" for="rclick">右键</label></td>
+                                        <td><input id="rclick" name="rclick" type="checkbox" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="key"><label class="big" for="mclick">中键</label></td>
+                                        <td><input id="mclick" name="mclick" type="checkbox" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="key"><label class="big" for="aclick">Alt</label></td>
+                                        <td><input id="aclick" name="aclick" type="checkbox" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="key"><label class="big" for="sclick">Shift</label></td>
+                                        <td><input id="sclick" name="sclick" type="checkbox" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="key"><label class="big" for="cclick">Ctrl</label></td>
+                                        <td><input id="cclick" name="cclick" type="checkbox" /></td>
+                                    </tr>
+                                </table>
+                            </fieldset>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </body>
+</html>

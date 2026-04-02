@@ -1,32 +1,40 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
+# 编译产物
+go-freerdp-webconnect
+build/
+install/
+
+# Go 相关
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Code coverage profiles and other test artifacts
 *.out
-coverage.*
-*.coverprofile
-profile.cov
+go.sum
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# Go workspace file
-go.work
-go.work.sum
-
-# env file
-.env
-
-# Editor/IDE
-# .idea/
-# .vscode/
+# 临时文件
+*.log
+*.tmp
+.claude/settings.json
+src/FreeRDP
+FINAL_STATUS.md
+COMPILE_STATUS.md
+API_MIGRATION_PROGRESS.md
+BUILD.md
+gofreerdp
+总结.md
+.claude/settings.json.manjian
+.claude/settings.json.manjian.local
+.claude/settings.json.whale
+.claude/settings.json.whale.local
+.claude/settings.local.json
+frontend/src/wailsjs
+.superpowers
