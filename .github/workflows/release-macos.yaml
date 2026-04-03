@@ -11,25 +11,16 @@ on:
         required: true
         default: '0.0.1'
 
+env:
+  FREERDP_TAG: "3.12.0"
+
 jobs:
-  release:
-    name: Release macOS App
+  release-arm64:
+    name: Release macOS (Apple Silicon)
     runs-on: macos-latest
-    strategy:
-      matrix:
-        platform:
-          - darwin/amd64
-          - darwin/arm64
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-
-      - name: Normalise platform tag
-        id: normalise_platform
-        shell: bash
-        run: |
-          tag=$(echo ${{ matrix.platform }} | sed -e 's/\//_/g' -e 's/darwin/mac/g' -e 's/amd64/intel/g')
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Normalise version tag
         id: normalise_version
@@ -72,12 +63,12 @@ jobs:
           mv tmp.json package.json
           npm install
 
-      - name: Build wails app for macOS
+      - name: Build wails app for macOS arm64
         shell: bash
         run: |
           FREERDP_PREFIX="$(brew --prefix freerdp)"
           export DYLD_LIBRARY_PATH="${FREERDP_PREFIX}/lib:${DYLD_LIBRARY_PATH:-}"
-          CGO_ENABLED=1 wails build -clean -platform ${{ matrix.platform }} \
+          CGO_ENABLED=1 wails build -clean -platform darwin/arm64 \
             -ldflags "-X main.version=${{ steps.normalise_version.outputs.version }}"
 
       - name: Create DMG
@@ -85,12 +76,124 @@ jobs:
         working-directory: ./build/bin
         run: |
           APP_NAME="QRDP.app"
-          DMG_NAME="QRDP_${{ steps.normalise_version.outputs.version }}_${{ steps.normalise_platform.outputs.tag }}.dmg"
+          DMG_NAME="QRDP_${{ steps.normalise_version.outputs.version }}_mac_arm64.dmg"
           hdiutil create -volname "QRDP" -srcfolder "${APP_NAME}" -ov -format UDZO "${DMG_NAME}"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.normalise_version.outputs.version }}
-          files: ./build/bin/QRDP_${{ steps.normalise_version.outputs.version }}_${{ steps.normalise_platform.outputs.tag }}.dmg
+          files: ./build/bin/QRDP_${{ steps.normalise_version.outputs.version }}_mac_arm64.dmg
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-amd64:
+    name: Release macOS (Intel)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Normalise version tag
+        id: normalise_version
+        shell: bash
+        run: |
+          if [ "${{ github.event.release.tag_name }}" == "" ]; then
+            version=$(echo ${{ github.event.inputs.tag }} | sed -e 's/v//g')
+          else
+            version=$(echo ${{ github.event.release.tag_name }} | sed -e 's/v//g')
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          brew install cmake openssl pkg-config
+
+      - name: Build FreeRDP from source for x86_64
+        shell: bash
+        run: |
+          FREERDP_SRC="${GITHUB_WORKSPACE}/src/FreeRDP"
+          FREERDP_BUILD="${GITHUB_WORKSPACE}/build/freerdp-darwin-amd64"
+          FREERDP_INSTALL="${GITHUB_WORKSPACE}/install"
+
+          git clone --depth 1 --branch "${FREERDP_TAG}" \
+            https://github.com/FreeRDP/FreeRDP.git "${FREERDP_SRC}"
+
+          mkdir -p "${FREERDP_BUILD}" "${FREERDP_INSTALL}"
+          cd "${FREERDP_BUILD}"
+
+          cmake "${FREERDP_SRC}" \
+            -DCMAKE_INSTALL_PREFIX="${FREERDP_INSTALL}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+            -DWITH_CUPS=OFF \
+            -DWITH_WAYLAND=OFF \
+            -DWITH_PULSE=OFF \
+            -DWITH_FFMPEG=OFF \
+            -DWITH_SWSCALE=OFF \
+            -DWITH_DSP_FFMPEG=OFF \
+            -DWITH_FUSE=OFF \
+            -DWITH_GSTREAMER_1_0=OFF \
+            -DWITH_CLIENT=OFF \
+            -DWITH_SERVER=OFF \
+            -DBUILD_TESTING=OFF \
+            -DCHANNEL_URBDRC=OFF \
+            -DWITH_KRB5=OFF \
+            -DWITH_PCSC=OFF \
+            -DWITH_ALSA=OFF \
+            -DWITH_X11=OFF \
+            -DWITH_MANPAGES=OFF
+
+          cmake --build . -- -j$(sysctl -n hw.ncpu)
+          cmake --install .
+
+          echo "FreeRDP x86_64 installed to ${FREERDP_INSTALL}"
+          file "${FREERDP_INSTALL}/lib/libfreerdp3.dylib"
+
+      - name: Install wails
+        shell: bash
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend assets
+        shell: bash
+        run: |
+          jq '.info.productVersion = "${{ steps.normalise_version.outputs.version }}"' wails.json > tmp.json
+          mv tmp.json wails.json
+          cd frontend
+          jq '.version = "${{ steps.normalise_version.outputs.version }}"' package.json > tmp.json
+          mv tmp.json package.json
+          npm install
+
+      - name: Build wails app for macOS amd64
+        shell: bash
+        run: |
+          FREERDP_INSTALL="${GITHUB_WORKSPACE}/install"
+          export PKG_CONFIG_PATH="${FREERDP_INSTALL}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          export DYLD_LIBRARY_PATH="${FREERDP_INSTALL}/lib:${DYLD_LIBRARY_PATH:-}"
+          GOARCH=amd64 CGO_ENABLED=1 wails build -clean -platform darwin/amd64 \
+            -ldflags "-X main.version=${{ steps.normalise_version.outputs.version }}"
+
+      - name: Create DMG
+        shell: bash
+        working-directory: ./build/bin
+        run: |
+          APP_NAME="QRDP.app"
+          DMG_NAME="QRDP_${{ steps.normalise_version.outputs.version }}_mac_intel.dmg"
+          hdiutil create -volname "QRDP" -srcfolder "${APP_NAME}" -ov -format UDZO "${DMG_NAME}"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.normalise_version.outputs.version }}
+          files: ./build/bin/QRDP_${{ steps.normalise_version.outputs.version }}_mac_intel.dmg
           token: ${{ secrets.GITHUB_TOKEN }}

@@ -54,7 +54,7 @@ jobs:
         shell: cmd
         run: |
           set MSYS64_ROOT=${{ steps.msys2.outputs.msys2-location }}
-          lib_build_windows.cmd --no-clone
+          lib_build_windows.cmd
 
       - name: Install wails
         shell: bash
