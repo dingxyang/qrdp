@@ -1,8 +1,7 @@
 package backend
 
 /*
-#cgo darwin CFLAGS: -I/usr/local/opt/freerdp/include/freerdp3 -I/usr/local/opt/freerdp/include/winpr3
-#cgo darwin LDFLAGS: -L/usr/local/opt/freerdp/lib -lfreerdp3 -lfreerdp-client3 -lwinpr3
+#cgo darwin pkg-config: freerdp3 freerdp-client3 winpr3
 #cgo linux CFLAGS: -I${SRCDIR}/../install/include/freerdp3 -I${SRCDIR}/../install/include/winpr3
 #cgo linux LDFLAGS: -L${SRCDIR}/../install/lib -lfreerdp3 -lfreerdp-client3 -lwinpr3
 #cgo windows CFLAGS: -I${SRCDIR}/../install/include/freerdp3 -I${SRCDIR}/../install/include/winpr3 -std=c17 -D__STDC_NO_THREADS__=1

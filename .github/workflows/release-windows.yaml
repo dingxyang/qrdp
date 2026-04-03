@@ -38,6 +38,7 @@ jobs:
           go-version: stable
 
       - name: Setup MSYS2
+        id: msys2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -50,10 +51,10 @@ jobs:
             mingw-w64-x86_64-zlib
 
       - name: Build FreeRDP
-        shell: msys2 {0}
+        shell: cmd
         run: |
-          export MSYS64_ROOT="${RUNNER_TEMP}/msys64"
-          ./lib_build_windows.cmd --no-clone
+          set MSYS64_ROOT=${{ steps.msys2.outputs.msys2-location }}
+          lib_build_windows.cmd --no-clone
 
       - name: Install wails
         shell: bash
@@ -77,7 +78,7 @@ jobs:
       - name: Build wails app
         shell: cmd
         run: |
-          set MSYS64_ROOT=%RUNNER_TEMP%\msys64
+          set MSYS64_ROOT=${{ steps.msys2.outputs.msys2-location }}
           wails_build_windows.cmd
 
       - name: Package zip

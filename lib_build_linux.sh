@@ -63,8 +63,8 @@ echo -e "\n${YELLOW}[2/3] 处理 Linux 依赖...${NC}"
 APT_DEPS=(
     libssl-dev libx11-dev libxext-dev libxinerama-dev libxcursor-dev
     libxdamage-dev libxv-dev libxkbfile-dev libasound2-dev libcups2-dev
-    libxml2-dev libxrandr-dev libgstreamer1.0-dev
-    libgstreamer-plugins-base1.0-dev libxi-dev libxtst-dev zlib1g-dev
+    libxml2-dev libxrandr-dev
+    libxi-dev libxtst-dev zlib1g-dev
     libgtk-3-dev libgcrypt20-dev libpulse-dev libusb-1.0-0-dev libudev-dev
     libdbus-glib-1-dev uuid-dev libxkbcommon-dev libopus-dev
 )

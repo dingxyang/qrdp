@@ -114,7 +114,7 @@ fi
 
 mkdir -p "${BUILD_BIN}"
 while IFS= read -r -d '' lib; do
-    cp -f "${lib}" "${BUILD_BIN}/"
-done < <(find "${FREERDP_INSTALL}" -type f \( -name 'libfreerdp*.so*' -o -name 'libwinpr*.so*' \) -print0)
+    cp -P "${lib}" "${BUILD_BIN}/"
+done < <(find "${FREERDP_INSTALL}" \( -type f -o -type l \) \( -name 'libfreerdp*.so*' -o -name 'libwinpr*.so*' \) -print0)
 
 echo "Done: ${BUILD_BIN}"
