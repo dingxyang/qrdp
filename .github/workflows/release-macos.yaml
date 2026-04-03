@@ -202,9 +202,8 @@ jobs:
           OPENSSL_INSTALL="${GITHUB_WORKSPACE}/openssl-x86_64"
           export PKG_CONFIG_PATH="${FREERDP_INSTALL}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
           export DYLD_LIBRARY_PATH="${FREERDP_INSTALL}/lib:${DYLD_LIBRARY_PATH:-}"
-          export CC="clang -arch x86_64"
-          export CGO_CFLAGS="-arch x86_64"
-          export CGO_LDFLAGS="-arch x86_64 -L${FREERDP_INSTALL}/lib -L${OPENSSL_INSTALL}/lib"
+          export CC="clang -target x86_64-apple-macos11"
+          export CGO_LDFLAGS="-target x86_64-apple-macos11 -L${FREERDP_INSTALL}/lib -L${OPENSSL_INSTALL}/lib"
           GOARCH=amd64 CGO_ENABLED=1 wails build -clean -platform darwin/amd64 \
             -ldflags "-X main.version=${{ steps.normalise_version.outputs.version }}"
 
