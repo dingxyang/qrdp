@@ -1,0 +1,173 @@
+name: Release Linux App
+run-name: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag'
+        required: true
+        default: '0.0.1'
+
+jobs:
+  release-ubuntu-22:
+    name: Release Linux (Ubuntu 22.04)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Normalise version tag
+        id: normalise_version
+        shell: bash
+        run: |
+          if [ "${{ github.event.release.tag_name }}" == "" ]; then
+            version=$(echo ${{ github.event.inputs.tag }} | sed -e 's/v//g')
+          else
+            version=$(echo ${{ github.event.release.tag_name }} | sed -e 's/v//g')
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential pkg-config \
+            libssl-dev libx11-dev libxext-dev libxinerama-dev libxcursor-dev \
+            libxdamage-dev libxv-dev libxkbfile-dev libasound2-dev libcups2-dev \
+            libxml2-dev libxrandr-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libxi-dev libxtst-dev zlib1g-dev \
+            libgtk-3-dev libgcrypt20-dev libpulse-dev libusb-1.0-0-dev libudev-dev \
+            libdbus-glib-1-dev uuid-dev libxkbcommon-dev libopus-dev \
+            libwebkit2gtk-4.0-dev
+
+      - name: Build FreeRDP
+        shell: bash
+        run: |
+          ./lib_build_linux.sh --auto-install --skip-deps
+
+      - name: Install wails
+        shell: bash
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend assets
+        shell: bash
+        run: |
+          jq '.info.productVersion = "${{ steps.normalise_version.outputs.version }}"' wails.json > tmp.json
+          mv tmp.json wails.json
+          cd frontend
+          jq '.version = "${{ steps.normalise_version.outputs.version }}"' package.json > tmp.json
+          mv tmp.json package.json
+          npm install
+
+      - name: Build wails app
+        shell: bash
+        run: |
+          ./wails_build_linux.sh -platform linux/amd64
+
+      - name: Package tarball
+        shell: bash
+        working-directory: ./build/bin
+        run: |
+          tar -czf "QRDP_${{ steps.normalise_version.outputs.version }}_linux_amd64_ubuntu22.tar.gz" *
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.normalise_version.outputs.version }}
+          files: ./build/bin/QRDP_${{ steps.normalise_version.outputs.version }}_linux_amd64_ubuntu22.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-ubuntu-24:
+    name: Release Linux (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Normalise version tag
+        id: normalise_version
+        shell: bash
+        run: |
+          if [ "${{ github.event.release.tag_name }}" == "" ]; then
+            version=$(echo ${{ github.event.inputs.tag }} | sed -e 's/v//g')
+          else
+            version=$(echo ${{ github.event.release.tag_name }} | sed -e 's/v//g')
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential pkg-config \
+            libssl-dev libx11-dev libxext-dev libxinerama-dev libxcursor-dev \
+            libxdamage-dev libxv-dev libxkbfile-dev libasound2-dev libcups2-dev \
+            libxml2-dev libxrandr-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libxi-dev libxtst-dev zlib1g-dev \
+            libgtk-3-dev libgcrypt20-dev libpulse-dev libusb-1.0-0-dev libudev-dev \
+            libdbus-glib-1-dev uuid-dev libxkbcommon-dev libopus-dev \
+            libwebkit2gtk-4.1-dev
+
+      - name: Build FreeRDP
+        shell: bash
+        run: |
+          ./lib_build_linux.sh --auto-install --skip-deps
+
+      - name: Install wails
+        shell: bash
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend assets
+        shell: bash
+        run: |
+          jq '.info.productVersion = "${{ steps.normalise_version.outputs.version }}"' wails.json > tmp.json
+          mv tmp.json wails.json
+          cd frontend
+          jq '.version = "${{ steps.normalise_version.outputs.version }}"' package.json > tmp.json
+          mv tmp.json package.json
+          npm install
+
+      - name: Build wails app
+        shell: bash
+        run: |
+          ./wails_build_linux.sh -platform linux/amd64
+
+      - name: Package tarball
+        shell: bash
+        working-directory: ./build/bin
+        run: |
+          tar -czf "QRDP_${{ steps.normalise_version.outputs.version }}_linux_amd64_ubuntu24.tar.gz" *
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.normalise_version.outputs.version }}
+          files: ./build/bin/QRDP_${{ steps.normalise_version.outputs.version }}_linux_amd64_ubuntu24.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
