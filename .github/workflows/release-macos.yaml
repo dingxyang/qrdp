@@ -112,7 +112,26 @@ jobs:
       - name: Install build dependencies
         shell: bash
         run: |
-          brew install cmake openssl pkg-config
+          brew install cmake pkg-config
+
+      - name: Build OpenSSL for x86_64
+        shell: bash
+        run: |
+          OPENSSL_VERSION="3.3.1"
+          OPENSSL_INSTALL="${GITHUB_WORKSPACE}/openssl-x86_64"
+
+          curl -fsSL "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz" \
+            | tar xz -C /tmp
+          cd "/tmp/openssl-${OPENSSL_VERSION}"
+
+          ./Configure darwin64-x86_64-cc \
+            --prefix="${OPENSSL_INSTALL}" \
+            no-shared no-tests no-docs
+          make -j$(sysctl -n hw.ncpu)
+          make install_sw
+
+          echo "OpenSSL x86_64 installed to ${OPENSSL_INSTALL}"
+          file "${OPENSSL_INSTALL}/lib/libssl.a"
 
       - name: Build FreeRDP from source for x86_64
         shell: bash
@@ -120,6 +139,7 @@ jobs:
           FREERDP_SRC="${GITHUB_WORKSPACE}/src/FreeRDP"
           FREERDP_BUILD="${GITHUB_WORKSPACE}/build/freerdp-darwin-amd64"
           FREERDP_INSTALL="${GITHUB_WORKSPACE}/install"
+          OPENSSL_INSTALL="${GITHUB_WORKSPACE}/openssl-x86_64"
 
           git clone --depth 1 --branch "${FREERDP_TAG}" \
             https://github.com/FreeRDP/FreeRDP.git "${FREERDP_SRC}"
@@ -131,6 +151,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="${FREERDP_INSTALL}" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+            -DOPENSSL_ROOT_DIR="${OPENSSL_INSTALL}" \
             -DWITH_CUPS=OFF \
             -DWITH_WAYLAND=OFF \
             -DWITH_PULSE=OFF \
