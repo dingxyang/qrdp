@@ -112,7 +112,7 @@ jobs:
       - name: Install build dependencies
         shell: bash
         run: |
-          brew install cmake pkg-config
+          brew install cmake pkg-config freerdp
 
       - name: Build OpenSSL for x86_64
         shell: bash
@@ -195,6 +195,11 @@ jobs:
           mv tmp.json package.json
           npm install
 
+      - name: Generate wails bindings (host arm64)
+        shell: bash
+        run: |
+          wails generate module
+
       - name: Build wails app for macOS amd64
         shell: bash
         run: |
@@ -204,7 +209,7 @@ jobs:
           export DYLD_LIBRARY_PATH="${FREERDP_INSTALL}/lib:${DYLD_LIBRARY_PATH:-}"
           export CGO_CFLAGS="-mmacosx-version-min=11.0"
           export CGO_LDFLAGS="-mmacosx-version-min=11.0 -L${FREERDP_INSTALL}/lib -L${OPENSSL_INSTALL}/lib"
-          GOARCH=amd64 CGO_ENABLED=1 wails build -clean -platform darwin/amd64 \
+          GOARCH=amd64 CGO_ENABLED=1 wails build -clean -skipbindings -platform darwin/amd64 \
             -ldflags "-X main.version=${{ steps.normalise_version.outputs.version }}"
 
       - name: Create DMG
