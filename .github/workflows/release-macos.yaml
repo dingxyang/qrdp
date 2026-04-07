@@ -136,6 +136,9 @@ jobs:
       - name: Build FreeRDP from source for x86_64
         shell: bash
         run: |
+          # 使用 Rosetta 2 安装 x86_64 依赖
+          softwareupdate --install-rosetta --agree-to-license || true
+
           FREERDP_SRC="${GITHUB_WORKSPACE}/src/FreeRDP"
           FREERDP_BUILD="${GITHUB_WORKSPACE}/build/freerdp-darwin-amd64"
           FREERDP_INSTALL="${GITHUB_WORKSPACE}/install"
@@ -147,11 +150,15 @@ jobs:
           mkdir -p "${FREERDP_BUILD}" "${FREERDP_INSTALL}"
           cd "${FREERDP_BUILD}"
 
-          cmake "${FREERDP_SRC}" \
+          # 使用 Rosetta 2 运行 cmake 构建 x86_64
+          arch -x86_64 cmake "${FREERDP_SRC}" \
             -DCMAKE_INSTALL_PREFIX="${FREERDP_INSTALL}" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=x86_64 \
             -DOPENSSL_ROOT_DIR="${OPENSSL_INSTALL}" \
+            -DCMAKE_PREFIX_PATH="/usr/local" \
+            -DCMAKE_LIBRARY_PATH="/usr/local/lib" \
+            -DCMAKE_INCLUDE_PATH="/usr/local/include" \
             -DWITH_CUPS=OFF \
             -DWITH_WAYLAND=OFF \
             -DWITH_PULSE=OFF \
@@ -178,7 +185,7 @@ jobs:
 
       - name: Install wails
         shell: bash
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        run: arch -x86_64 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -193,12 +200,12 @@ jobs:
           cd frontend
           jq '.version = "${{ steps.normalise_version.outputs.version }}"' package.json > tmp.json
           mv tmp.json package.json
-          npm install
+          arch -x86_64 npm install
 
       - name: Generate wails bindings (host arm64)
         shell: bash
         run: |
-          wails generate module
+          arch -x86_64 wails generate module
 
       - name: Build wails app for macOS amd64
         shell: bash
@@ -209,7 +216,7 @@ jobs:
           export DYLD_LIBRARY_PATH="${FREERDP_INSTALL}/lib:${DYLD_LIBRARY_PATH:-}"
           export CGO_CFLAGS="-mmacosx-version-min=11.0"
           export CGO_LDFLAGS="-mmacosx-version-min=11.0 -L${FREERDP_INSTALL}/lib -L${OPENSSL_INSTALL}/lib"
-          GOARCH=amd64 CGO_ENABLED=1 wails build -clean -skipbindings -platform darwin/amd64 \
+          arch -x86_64 GOARCH=amd64 CGO_ENABLED=1 wails build -clean -skipbindings -platform darwin/amd64 \
             -ldflags "-X main.version=${{ steps.normalise_version.outputs.version }}"
 
       - name: Create DMG
