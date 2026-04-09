@@ -199,6 +199,11 @@ jobs:
           jq '.version = "${{ steps.normalise_version.outputs.version }}"' package.json > tmp.json
           mv tmp.json package.json
           npm install
+          npm run build
+
+      - name: Download Go modules
+        shell: bash
+        run: go mod download
 
       - name: Generate wails bindings (host arm64)
         shell: bash
