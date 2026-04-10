@@ -1,5 +1,5 @@
-name: Release macOS App
-run-name: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+name: Release macOS Intel App
+run-name: macOS intel ${{ github.event.release.tag_name || github.event.inputs.tag }}
 
 on:
   release:
@@ -15,81 +15,6 @@ env:
   FREERDP_TAG: "3.12.0"
 
 jobs:
-  release-arm64:
-    name: Release macOS (Apple Silicon)
-    runs-on: macos-latest
-    steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
-
-      - name: Normalise version tag
-        id: normalise_version
-        shell: bash
-        run: |
-          if [ "${{ github.event.release.tag_name }}" == "" ]; then
-            version=$(echo ${{ github.event.inputs.tag }} | sed -e 's/v//g')
-          else
-            version=$(echo ${{ github.event.release.tag_name }} | sed -e 's/v//g')
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: stable
-
-      - name: Install FreeRDP via Homebrew
-        shell: bash
-        run: |
-          brew install freerdp
-          echo "FreeRDP version: $(brew list --versions freerdp)"
-
-      - name: Install wails
-        shell: bash
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Build frontend assets
-        shell: bash
-        run: |
-          jq '.info.productVersion = "${{ steps.normalise_version.outputs.version }}"' wails.json > tmp.json
-          mv tmp.json wails.json
-          cd frontend
-          jq '.version = "${{ steps.normalise_version.outputs.version }}"' package.json > tmp.json
-          mv tmp.json package.json
-          npm install
-
-      - name: Download Go modules
-        shell: bash
-        run: go mod download
-
-      - name: Build wails app for macOS arm64
-        shell: bash
-        run: |
-          FREERDP_PREFIX="$(brew --prefix freerdp)"
-          export DYLD_LIBRARY_PATH="${FREERDP_PREFIX}/lib:${DYLD_LIBRARY_PATH:-}"
-          CGO_ENABLED=1 wails build -clean -platform darwin/arm64 \
-            -ldflags "-X main.version=${{ steps.normalise_version.outputs.version }}"
-
-      - name: Create DMG
-        shell: bash
-        working-directory: ./build/bin
-        run: |
-          APP_NAME="QRDP.app"
-          DMG_NAME="QRDP_${{ steps.normalise_version.outputs.version }}_mac_arm64.dmg"
-          hdiutil create -volname "QRDP" -srcfolder "${APP_NAME}" -ov -format UDZO "${DMG_NAME}"
-
-      - name: Upload release asset
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.normalise_version.outputs.version }}
-          files: ./build/bin/QRDP_${{ steps.normalise_version.outputs.version }}_mac_arm64.dmg
-          token: ${{ secrets.GITHUB_TOKEN }}
-
   release-amd64:
     name: Release macOS (Intel)
     runs-on: macos-latest
